@@ -11,7 +11,7 @@ const jwt = require("jsonwebtoken"); // JWTのため
 const cookieParser = require("cookie-parser");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const DB_PATH = process.env.DB_PATH || "./tango-v3_fixed_all.db";
 
 // Middleware
@@ -194,25 +194,48 @@ app.get("/words/:level", (req, res) => {
 });
 
 
-// 履歴保存エンドポイント
-app.post("/history", (req, res) => {
-    const { wordId, userId = 1, state, date } = req.body;
+app.get("/history", (req, res) => {
+    const { userId = 1 } = req.query;
 
-    if (!wordId || !state || !date) {
-        return res.status(400).json({ error: "必要なデータが不足しています。" });
+    if (!userId) {
+        return res.status(400).json({ error: "ユーザーIDが不足しています。" });
     }
 
-    const query = `
-        INSERT INTO history (word_id, user_id, state, date)
-        VALUES (?, ?, ?, ?)
+    // historyとwordを結合して履歴データを取得
+    const getHistoryQuery = `
+        SELECT 
+            history.id AS history_id,
+            history.user_id,
+            history.date,
+            history.state,
+            word.word,
+            word.jword,
+            word.type,
+            word.level
+        FROM 
+            history
+        INNER JOIN 
+            word 
+        ON 
+            history.word_id = word.id
+        WHERE 
+            history.user_id = ?
+        ORDER BY 
+            history.date DESC
     `;
 
-    db.run(query, [wordId, userId, state, date], (err) => {
+    db.all(getHistoryQuery, [userId], (err, rows) => {
         if (err) {
-            console.error("履歴保存エラー:", err.message);
-            return res.status(500).json({ error: "履歴の保存中にエラーが発生しました。" });
+            console.error("履歴取得エラー:", err.message);
+            return res.status(500).json({ error: "履歴の取得中にエラーが発生しました。" });
         }
-        res.status(201).json({ message: "履歴が正常に保存されました。" });
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "履歴が見つかりません。" });
+        }
+
+        // レスポンスとして履歴データを返す
+        res.status(200).json({ history: rows });
     });
 });
 
@@ -253,6 +276,118 @@ app.get("/history/incorrect", (req, res) => {
 
 app.get("*", (req, res) => {
     res.sendFile(path.join(__dirname, "build", "index.html"));
+});
+
+// results テーブルの作成
+db.serialize(() => {
+    db.run(
+        `CREATE TABLE IF NOT EXISTS results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            word TEXT NOT NULL,
+            jword TEXT NOT NULL,
+            state TEXT NOT NULL, -- "correct" または "incorrect"
+            username TEXT NOT NULL,
+            date TEXT NOT NULL -- 回答日時
+        )`,
+        (err) => {
+            if (err) {
+                console.error("Results テーブル作成エラー:", err.message);
+            } else {
+                console.log("results テーブルが作成されました。");
+            }
+        }
+    );
+});
+
+
+// クイズ結果保存エンドポイント
+app.post("/saveResult", (req, res) => {
+    const { word, jword, state, username } = req.body;
+
+    if (!word || !jword || !state || !username) {
+        return res.status(400).json({ error: "必要なデータが不足しています。" });
+    }
+
+    const date = new Date().toISOString(); // 現在時刻をISOフォーマットで取得
+
+    const query = `
+        INSERT INTO results (word, jword, state, username, date)
+        VALUES (?, ?, ?, ?, ?)
+    `;
+
+    db.run(query, [word, jword, state, username, date], (err) => {
+        if (err) {
+            console.error("クイズ結果保存エラー:", err.message);
+            return res.status(500).json({ error: "クイズ結果保存中にエラーが発生しました。" });
+        }
+        res.status(201).json({ message: "クイズ結果が正常に保存されました。" });
+    });
+});
+
+
+// クイズ結果取得エンドポイント
+app.get("/results", (req, res) => {
+    const query = "SELECT * FROM results ORDER BY date DESC";
+
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error("クイズ結果取得エラー:", err.message);
+            return res.status(500).json({ error: "クイズ結果取得中にエラーが発生しました。" });
+        }
+        res.json(rows);
+    });
+});
+
+
+app.get("/results/incorrect", (req, res) => {
+    const query = `
+        SELECT word, jword, date
+        FROM results
+        WHERE state = 'incorrect'
+        ORDER BY date DESC
+    `;
+
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error("間違った単語の取得エラー:", err.message);
+            return res.status(500).json({ error: "データの取得中にエラーが発生しました。" });
+        }
+        res.json(rows);
+    });
+});
+app.get("/results/incorrect-by-date", (req, res) => {
+    const query = `
+        SELECT word, jword, date
+        FROM results
+        WHERE state = 'incorrect'
+        ORDER BY date DESC
+    `;
+
+    db.all(query, [], (err, rows) => {
+        if (err) {
+            console.error("間違った単語の日付ごとの取得エラー:", err.message);
+            return res.status(500).json({ error: "データの取得中にエラーが発生しました。" });
+        }
+
+        // 日付ごとにデータを分類
+        const groupedByDate = rows.reduce((acc, row) => {
+            const date = row.date.split("T")[0]; // 日付部分のみ抽出
+            if (!acc[date]) {
+                acc[date] = [];
+            }
+            acc[date].push(row);
+            return acc;
+        }, {});
+
+        res.json(groupedByDate);
+    });
+});
+
+app.use(express.static(path.join(__dirname, "build")));
+
+app.use((req, res, next) => {
+    res.setHeader("Cache-Control", "no-store");
+    next();
 });
 
 // サーバー起動
