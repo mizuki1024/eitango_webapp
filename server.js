@@ -194,7 +194,34 @@ app.get("/words/:level", (req, res) => {
 });
 
 
-app.get("/history", (req, res) => {
+app.post('/history', (req, res) => {
+    const { user_id, word_id, date, state } = req.body;
+
+    // 必須データのバリデーション
+    if (!user_id || !word_id || !date || !state) {
+        console.error("リクエストデータが不足しています:", req.body);
+        return res.status(400).json({ error: '必要なデータが不足しています' });
+    }
+
+    // INSERTクエリ
+    const query = `
+        INSERT INTO history (user_id, word_id, date, state)
+        VALUES (?, ?, ?, ?)
+    `;
+
+    // データベースに保存
+    db.run(query, [user_id, word_id, date, state], (err) => {
+        if (err) {
+            console.error('履歴保存エラー:', err.message);
+            return res.status(500).json({ error: '履歴の保存に失敗しました' });
+        }
+        res.status(201).json({ message: '履歴が正常に保存されました' });
+    });
+});
+
+
+
+app.get("/history_v2", (req, res) => {
     const { userId = 1 } = req.query;
 
     if (!userId) {
