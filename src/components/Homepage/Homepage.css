@@ -1,0 +1,71 @@
+.home-page {
+    text-align: center;
+    background-color: #f5faff;
+    padding: 20px;
+  }
+  
+  .notification {
+    background-color: #e0f7fa;
+    color: #007bff;
+    padding: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    margin-bottom: 20px;
+  }
+  
+  .notification a {
+    text-decoration: none;
+    color: #007bff;
+  }
+  
+  .title {
+    font-size: 2.5em;
+    font-weight: bold;
+    color: #2c3e50;
+  }
+  
+  .subtitle {
+    color: #607d8b;
+    margin: 10px 0 30px;
+  }
+  
+  .actions {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+  }
+  
+  .action-card {
+    background: white;
+    border: 1px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 20px;
+    width: 200px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  }
+  
+  .action-card a {
+    text-decoration: none;
+    color: #2c3e50;
+  }
+  
+  .action-card:hover {
+    transform: scale(1.05);
+    transition: 0.3s ease;
+  }
+  
+  .icon {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+    color: #007bff;
+  }
+  
+  h2 {
+    font-size: 1.5em;
+    margin: 10px 0;
+  }
+  
+  p {
+    color: #607d8b;
+  }

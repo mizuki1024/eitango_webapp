@@ -1,23 +1,24 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import './App.css';
-import Login from './components/login/loginpage';
-import Register from './components/register/page';
-import './globals.css'; // Tailwind CSS のグローバルスタイルをインポート
+import HomePage from './components/Homepage/Homepage';
+import StudyPage from './components/study/study';
+import ReviewPage from './components/mistakes-page/page';
+import QuestionPage from './components/Question/question';
+import Answer from './components/Answer/answer';
+
 
 function App() {
   return (
     <Router>
-      <div className="App">
-        <header className="App-header">
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-          </Routes>
-        </header>
-      </div>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/study" element={<StudyPage />} />
+        <Route path="/review" element={<ReviewPage />} />
+        <Route path="/level/:level" element={<QuestionPage />} />
+        <Route path="/answer" element={<Answer />} />
+        
+      </Routes>
     </Router>
   );
 }
-
 export default App;

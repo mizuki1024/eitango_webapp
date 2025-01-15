@@ -5,26 +5,34 @@ const compression = require("compression");
 const morgan = require("morgan");
 const path = require("path");
 const bcrypt = require("bcrypt");
-require("dotenv").config();
-const SECRET_KEY = "your_secret_key"; // JWTの秘密鍵
-const jwt = require("jsonwebtoken"); // JWTのため
+const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
+const linebot = require("linebot");
+require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 3002;
 const DB_PATH = process.env.DB_PATH || "./tango-v3_fixed_all.db";
+const SECRET_KEY = "your_secret_key";
+
+// LINE Bot 設定
+const bot = linebot({
+    channelId: process.env.LINE_CHANNEL_ID,
+    channelSecret: process.env.LINE_CHANNEL_SECRET,
+    channelAccessToken: process.env.LINE_ACCESS_TOKEN,
+});
 
 // Middleware
 const corsOptions = {
-    origin: "http://localhost:3000", // フロントエンドのURL
+    origin: "http://localhost:3003",
     methods: ["POST", "GET"],
-    credentials: true, // クッキーや認証情報を含める場合
+    credentials: true,
 };
 
 app.use(cors(corsOptions));
-app.use(cookieParser()); // クッキーをパースするミドルウェア
+app.use(cookieParser());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'build')));
+app.use(express.static(path.join(__dirname, "build")));
 app.use(compression());
 app.use(morgan("combined"));
 
@@ -37,8 +45,7 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
     }
 });
 
-
-// users テーブルの作成
+// users テーブル作成
 db.serialize(() => {
     db.run(
         `CREATE TABLE IF NOT EXISTS users (
@@ -46,27 +53,43 @@ db.serialize(() => {
             email TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
             username TEXT NOT NULL
-        )`,
-        (err) => {
-            if (err) {
-                console.error("テーブル作成エラー:", err.message);
-            } else {
-                console.log("users テーブルが作成されました。");
-            }
-        }
+        )`
     );
 });
+
+// reminders テーブル作成
+db.serialize(() => {
+    db.run(
+        `CREATE TABLE IF NOT EXISTS reminders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            word_id INTEGER NOT NULL,
+            notify_date TEXT NOT NULL,
+            notified BOOLEAN DEFAULT FALSE
+        )`
+    );
+});
+
+app.post("/webhook", (req, res) => {
+    const events = req.body.events;
+    events.forEach((event) => {
+        if (event.type === "message") {
+            console.log("ユーザーID:", U518a6ae865a52230db9f92a137b9d5c7); // ユーザーIDをログに表示
+        }
+    });
+    res.sendStatus(200);
+});
+
+
 
 // ルート
 app.get("/", (req, res) => {
     res.send("サーバーが正常に起動しています");
 });
 
+// ユーザー登録
 app.post("/register", async (req, res) => {
     const { email, password, username } = req.body;
-
-    // リクエストデータをログ出力
-    console.log("リクエストデータ:", req.body);
 
     if (!email || !password || !username) {
         return res.status(400).json({ error: "メールアドレス、パスワード、ユーザー名は必須です。" });
@@ -78,19 +101,16 @@ app.post("/register", async (req, res) => {
 
         db.run(query, [email, hashedPassword, username], function (err) {
             if (err) {
-                console.error("データベースエラー:", err.message); // エラー詳細をログに出力
                 return res.status(500).json({ error: "登録中にエラーが発生しました。" });
             }
             res.status(201).json({ message: "登録成功！", userId: this.lastID });
         });
     } catch (error) {
-        console.error("登録エラー:", error.message); // サーバーエラーの詳細をログに出力
         res.status(500).json({ error: "サーバーエラーが発生しました。" });
     }
 });
 
-
-// ログインエンドポイント
+// ユーザーログイン
 app.post("/login", (req, res) => {
     const { email, password } = req.body;
 
@@ -110,40 +130,90 @@ app.post("/login", (req, res) => {
                 return res.status(401).json({ error: "メールアドレスまたはパスワードが間違っています。" });
             }
 
-            // JWTトークンを生成
             const token = jwt.sign({ id: user.id, email: user.email }, SECRET_KEY);
+            res.cookie("token", token, { httpOnly: true, sameSite: "lax", secure: false });
 
-            // クッキーにトークンを保存
-            res.cookie("token", token, { httpOnly: true , sameSite: "lax", secure: false});
-
-            return res.status(200).json({ message: "ログイン成功！", userId: user.id });
+            res.status(200).json({ message: "ログイン成功！", userId: user.id });
         } catch (error) {
-            console.error("ログインエラー:", error.message);
-            return res.status(500).json({ error: "サーバーエラーが発生しました。" });
+            res.status(500).json({ error: "サーバーエラーが発生しました。" });
         }
     });
 });
 
-// 認証ミドルウェア
-function authenticateToken(req, res, next) {
-    
-    const token = req.cookies.token;
-    console.log("Cookies:", req.cookies); // クッキーの内容をログに出力
+// 履歴登録と通知スケジュール生成
+app.post("/history", (req, res) => {
+    const { user_id, word_id, date, state } = req.body;
 
-    if (!token) {
-        return res.status(401).json({ error: "未認証のユーザーです。" });
+    if (!user_id || !word_id || !date || !state) {
+        return res.status(400).json({ error: "必要なデータが不足しています。" });
     }
 
-    jwt.verify(token, SECRET_KEY, (err, user) => {
-        if (err) return res.status(403).json({ error: "トークンが無効です。" });
-        req.user = user;
-        next();
-    });
-}
+    const query = `
+        INSERT INTO history (user_id, word_id, date, state)
+        VALUES (?, ?, ?, ?)
+    `;
 
-// 認証状態を確認するエンドポイント
-app.get("/profile", authenticateToken,(req, res) => {
-    res.json({ message: "認証済みユーザーです。", user: req.user });
+    db.run(query, [user_id, word_id, date, state], function (err) {
+        if (err) {
+            return res.status(500).json({ error: "履歴の保存に失敗しました。" });
+        }
+
+        const reminderDates = [1, 7, 30].map((days) =>
+            new Date(new Date(date).setDate(new Date(date).getDate() + days))
+                .toISOString()
+                .split("T")[0]
+        );
+
+        const reminderQuery = `
+            INSERT INTO reminders (user_id, word_id, notify_date)
+            VALUES (?, ?, ?)
+        `;
+
+        const stmt = db.prepare(reminderQuery);
+        reminderDates.forEach((notifyDate) => {
+            stmt.run(user_id, word_id, notifyDate);
+        });
+        stmt.finalize();
+
+        res.status(201).json({ message: "履歴と通知スケジュールが正常に保存されました。" });
+    });
+});
+
+// 通知送信
+app.post("/send-notifications", (req, res) => {
+    const today = new Date().toISOString().split("T")[0];
+
+    const query = `
+        SELECT r.id AS reminder_id, r.user_id, r.word_id, w.word, w.jword
+        FROM reminders r
+        JOIN word w ON r.word_id = w.id
+        WHERE r.notify_date = ? AND r.notified = FALSE
+    `;
+
+    db.all(query, [today], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: "通知データ取得中にエラーが発生しました。" });
+        }
+
+        rows.forEach(({ reminder_id, user_id, word, jword }) => {
+            const message = `復習通知: ${word} (${jword}) を復習してください！`;
+
+            bot.push(user_id, message)
+                .then(() => {
+                    const updateQuery = `
+                        UPDATE reminders
+                        SET notified = TRUE
+                        WHERE id = ?
+                    `;
+                    db.run(updateQuery, [reminder_id]);
+                })
+                .catch((err) => {
+                    console.error("LINE通知エラー:", err.message);
+                });
+        });
+
+        res.status(200).json({ message: "通知送信完了。" });
+    });
 });
 
 // 単語取得エンドポイント
@@ -152,12 +222,12 @@ app.get("/words/:level", (req, res) => {
     const userId = req.query.userId || 1; // デフォルトのユーザーID
 
     const query = `
-        SELECT id, word, jword 
-        FROM word 
+        SELECT id, word, jword
+        FROM word
         WHERE level = ?
           AND id NOT IN (
-              SELECT word_id 
-              FROM history 
+              SELECT word_id
+              FROM history
               WHERE user_id = ? AND date = date('now')
           )
         LIMIT 100
@@ -193,14 +263,14 @@ app.get("/words/:level", (req, res) => {
     });
 });
 
-
-app.post('/history', (req, res) => {
+// 履歴登録エンドポイント
+app.post("/history", (req, res) => {
     const { user_id, word_id, date, state } = req.body;
 
     // 必須データのバリデーション
     if (!user_id || !word_id || !date || !state) {
         console.error("リクエストデータが不足しています:", req.body);
-        return res.status(400).json({ error: '必要なデータが不足しています' });
+        return res.status(400).json({ error: "必要なデータが不足しています。" });
     }
 
     // INSERTクエリ
@@ -212,15 +282,14 @@ app.post('/history', (req, res) => {
     // データベースに保存
     db.run(query, [user_id, word_id, date, state], (err) => {
         if (err) {
-            console.error('履歴保存エラー:', err.message);
-            return res.status(500).json({ error: '履歴の保存に失敗しました' });
+            console.error("履歴保存エラー:", err.message);
+            return res.status(500).json({ error: "履歴の保存に失敗しました。" });
         }
-        res.status(201).json({ message: '履歴が正常に保存されました' });
+        res.status(201).json({ message: "履歴が正常に保存されました。" });
     });
 });
 
-
-
+// 履歴取得エンドポイント
 app.get("/history_v2", (req, res) => {
     const { userId = 1 } = req.query;
 
@@ -305,119 +374,8 @@ app.get("*", (req, res) => {
     res.sendFile(path.join(__dirname, "build", "index.html"));
 });
 
-// results テーブルの作成
-db.serialize(() => {
-    db.run(
-        `CREATE TABLE IF NOT EXISTS results (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            word TEXT NOT NULL,
-            jword TEXT NOT NULL,
-            state TEXT NOT NULL, -- "correct" または "incorrect"
-            username TEXT NOT NULL,
-            date TEXT NOT NULL -- 回答日時
-        )`,
-        (err) => {
-            if (err) {
-                console.error("Results テーブル作成エラー:", err.message);
-            } else {
-                console.log("results テーブルが作成されました。");
-            }
-        }
-    );
-});
 
 
-// クイズ結果保存エンドポイント
-app.post("/saveResult", (req, res) => {
-    const { word, jword, state, username } = req.body;
-
-    if (!word || !jword || !state || !username) {
-        return res.status(400).json({ error: "必要なデータが不足しています。" });
-    }
-
-    const date = new Date().toISOString(); // 現在時刻をISOフォーマットで取得
-
-    const query = `
-        INSERT INTO results (word, jword, state, username, date)
-        VALUES (?, ?, ?, ?, ?)
-    `;
-
-    db.run(query, [word, jword, state, username, date], (err) => {
-        if (err) {
-            console.error("クイズ結果保存エラー:", err.message);
-            return res.status(500).json({ error: "クイズ結果保存中にエラーが発生しました。" });
-        }
-        res.status(201).json({ message: "クイズ結果が正常に保存されました。" });
-    });
-});
-
-
-// クイズ結果取得エンドポイント
-app.get("/results", (req, res) => {
-    const query = "SELECT * FROM results ORDER BY date DESC";
-
-    db.all(query, [], (err, rows) => {
-        if (err) {
-            console.error("クイズ結果取得エラー:", err.message);
-            return res.status(500).json({ error: "クイズ結果取得中にエラーが発生しました。" });
-        }
-        res.json(rows);
-    });
-});
-
-
-app.get("/results/incorrect", (req, res) => {
-    const query = `
-        SELECT word, jword, date
-        FROM results
-        WHERE state = 'incorrect'
-        ORDER BY date DESC
-    `;
-
-    db.all(query, [], (err, rows) => {
-        if (err) {
-            console.error("間違った単語の取得エラー:", err.message);
-            return res.status(500).json({ error: "データの取得中にエラーが発生しました。" });
-        }
-        res.json(rows);
-    });
-});
-app.get("/results/incorrect-by-date", (req, res) => {
-    const query = `
-        SELECT word, jword, date
-        FROM results
-        WHERE state = 'incorrect'
-        ORDER BY date DESC
-    `;
-
-    db.all(query, [], (err, rows) => {
-        if (err) {
-            console.error("間違った単語の日付ごとの取得エラー:", err.message);
-            return res.status(500).json({ error: "データの取得中にエラーが発生しました。" });
-        }
-
-        // 日付ごとにデータを分類
-        const groupedByDate = rows.reduce((acc, row) => {
-            const date = row.date.split("T")[0]; // 日付部分のみ抽出
-            if (!acc[date]) {
-                acc[date] = [];
-            }
-            acc[date].push(row);
-            return acc;
-        }, {});
-
-        res.json(groupedByDate);
-    });
-});
-
-app.use(express.static(path.join(__dirname, "build")));
-
-app.use((req, res, next) => {
-    res.setHeader("Cache-Control", "no-store");
-    next();
-});
-
-// サーバー起動
 app.listen(PORT, () => {
     console.log(`Server is running on ${PORT}`);
 });

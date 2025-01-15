@@ -1,0 +1,148 @@
+/* mistakes.css */
+.container {
+    background-color: #f7fafc;
+    padding: 20px;
+  }
+  
+  .main-content {
+    text-align: center;
+  }
+  
+  .header {
+    margin-bottom: 20px;
+  }
+  
+  .card {
+    background-color: #ffffff;
+    padding: 20px;
+    margin: 10px;
+    border-radius: 10px;
+  }
+  
+  .card-content {
+    padding: 10px;
+  }
+  
+  .select-date-button {
+    background-color: #4c51bf;
+    color: #fff;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+  }
+  
+  .select-date-button:hover {
+    background-color: #434190;
+  }
+  
+  .result-container {
+    text-align: center;
+  }
+  
+  .back-button {
+    background-color: #718096;
+    color: #fff;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+  }
+  
+  .back-button:hover {
+    background-color: #4a5568;
+  }
+  
+  .quiz-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+  
+  .quiz-card {
+    width: 80%;
+    max-width: 500px;
+  }
+  
+  .quiz-content {
+    padding: 20px;
+  }
+  
+  .quiz-title {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  .choice-grid {
+    display: flex;
+    flex-direction: column;
+    margin-top: 20px;
+  }
+  
+  .choice-button {
+    background-color: #63b3ed;
+    color: white;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 5px;
+    border: none;
+  }
+  
+  .correct-choice {
+    background-color: #38a169;
+  }
+  
+  .incorrect-choice {
+    background-color: #e53e3e;
+  }
+  
+  .answer-section {
+    margin-top: 20px;
+  }
+  
+  .correct-answer {
+    color: #38a169;
+  }
+  
+
+/* 次の問題へボタンのスタイル */
+.next-button {
+    display: inline-block;
+    width: 100%;
+    padding: 10px 20px;
+    background-color: #4caf50; /* 緑色 */
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    text-align: center;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s, transform 0.2s;
+  }
+  
+  .next-button:hover {
+    background-color: #45a049; /* ホバー時の色 */
+  }
+  
+  .next-button:active {
+    transform: scale(0.95); /* 押された時に少し縮小 */
+  }
+  
+  /* 次の問題へボタンを目立たせるためのアニメーション */
+  .next-button-animation {
+    animation: pulse 1.5s infinite;
+  }
+  
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 10px rgba(72, 239, 128, 0.5);
+    }
+    50% {
+      box-shadow: 0 0 20px rgba(72, 239, 128, 1);
+    }
+    100% {
+      box-shadow: 0 0 10px rgba(72, 239, 128, 0.5);
+    }
+  }
+
+  
