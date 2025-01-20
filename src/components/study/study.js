@@ -1,8 +1,10 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "./study.css";
 
 const Study = () => {
+  const navigate = useNavigate(); // navigateを使用してルートパスに戻る
+
   return (
     <div className="study-container">
       <header className="study-header">
@@ -28,6 +30,12 @@ const Study = () => {
           </div>
         ))}
       </main>
+      {/* ホームに戻るボタンを追加 */}
+      <div className="home-button-container">
+        <button className="home-button" onClick={() => navigate("/")}>
+          ホームに戻る
+        </button>
+      </div>
       <footer className="study-footer">
         <p>© 2025 単語master</p>
       </footer>

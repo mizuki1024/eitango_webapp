@@ -289,15 +289,14 @@ app.post("/history", (req, res) => {
     });
 });
 
-// 履歴取得エンドポイント
 app.get("/history_v2", (req, res) => {
-    const { userId = 1 } = req.query;
+    const userId = req.session?.line_user_id || req.query.userId;
 
     if (!userId) {
+        console.error("ユーザーIDが不足しています。");
         return res.status(400).json({ error: "ユーザーIDが不足しています。" });
     }
 
-    // historyとwordを結合して履歴データを取得
     const getHistoryQuery = `
         SELECT 
             history.id AS history_id,
@@ -326,14 +325,16 @@ app.get("/history_v2", (req, res) => {
             return res.status(500).json({ error: "履歴の取得中にエラーが発生しました。" });
         }
 
-        if (rows.length === 0) {
+        if (!rows || rows.length === 0) {
+            console.warn("履歴が見つかりません。");
             return res.status(404).json({ error: "履歴が見つかりません。" });
         }
 
-        // レスポンスとして履歴データを返す
         res.status(200).json({ history: rows });
     });
 });
+
+
 
 // 間違えた履歴取得エンドポイント
 app.get("/history/incorrect", (req, res) => {

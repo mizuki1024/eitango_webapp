@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './Homepage.css';
 
+const baseUrl = process.env.REACT_APP_LOCALSERVER_URL;
+
 function HomePage() {
   const [reminderMessage, setReminderMessage] = useState('');
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch('http://localhost:3002/history_v2?userId=1');
+      const response = await fetch(`${baseUrl}/history_v2?userId=1`);
       const data = await response.json();
       
       const today = new Date();
